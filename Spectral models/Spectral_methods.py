@@ -92,7 +92,7 @@ def Wirsching_Light(k, Mo):
 def Tovo_Benasciutti(Mo, k):
     '''
     Function that calculates correction coefficients to apply the Tovo & Benasciutti
-    approach with the nonlinear coefficient proposed by Cianetti
+    method
     '''
     alfa_1 = Mo[1] / np.sqrt(Mo[0] * Mo[2])
     alfa_2 = Mo[2] / np.sqrt(Mo[0] * Mo[4])
