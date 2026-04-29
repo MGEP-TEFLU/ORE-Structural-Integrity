@@ -5,10 +5,12 @@ Description: This module defines the spectral models for fatigue assessment.
 """
 
 import numpy as np
+import math
 import scipy.stats as st
 import scipy.signal as sig
 from scipy import integrate, special
 from scipy.optimize import fsolve
+from scipy.special import gamma
 
 
 def per_spectral_mom(f, Pxx, n):
@@ -19,7 +21,7 @@ def per_spectral_mom(f, Pxx, n):
     Mo = np.zeros_like(n, dtype=float)
     for i, ni in enumerate(n):
         integrand = (2 * np.pi * f)**ni * Pxx
-        Mo[i] = integrate.simps(integrand, f)
+        Mo[i] = integrate.simpson(integrand, f)
     return Mo
 
 def spectral_moments(f, Pxx):
@@ -30,13 +32,6 @@ def spectral_moments(f, Pxx):
     return Mo
 
 
-def gamma_func(z):
-    '''
-    Function that returns the gamma function
-    '''
-    gamma = integrate.quad(lambda alfa: alfa**(z - 1)
-                           * np.exp(-alfa), 0, np.inf)
-    return gamma[0]
 
 def get_mu(f, Pxx, k):
     landa = per_spectral_mom(f, Pxx, [0.01, k+0.01, 2*k+0.01])
@@ -46,11 +41,11 @@ def get_mu(f, Pxx, k):
 
 def K_func(k):
     '''
-    Function that returns the K function
+    Function that returns the K function using the closed-form:
+    K = 2^(k/2) * Gamma(k/2 + 1)
     '''
-    K = integrate.quad(lambda sigma: sigma**(1 + k)
-                       * np.exp(-sigma**2 / 2), 0, np.inf)
-    return K[0]
+    return (2**(k/2)) * gamma(k/2 + 1)
+
 
 def P_pdf(Mo_1, Mo_2):
     
@@ -74,7 +69,7 @@ def P_pdf(Mo_1, Mo_2):
 
 
 def Narrowband(k, C, Mo, ZUCF):
-    return ZUCF / C * (2 * np.sqrt(2 * Mo[0]))**k * gamma_func(1 + k / 2)
+    return ZUCF / C * (2 * np.sqrt(2 * Mo[0]))**k * gamma(1 + k / 2)
 
 ###############################################################################
 
@@ -154,8 +149,8 @@ def Dirlik(Mo, k, C):
     D2 = (1 - alfa2 - D1 + D1**2) / (1 - R)
     D3 = 1 - D1 - D2
     Q = (1.25 * (alfa2 - D3 - D2 * R)) / D1
-    d = vp * (2 * np.sqrt(Mo[0]))**k / C * (D1 * Q**k * gamma_func(1 + k) + \
-              np.sqrt(2)**k * gamma_func(1 + k / 2) * (D2 * np.abs(R)**k + D3))
+    d = vp * (2 * np.sqrt(Mo[0]))**k / C * (D1 * Q**k * gamma(1 + k) + \
+              np.sqrt(2)**k * gamma(1 + k / 2) * (D2 * np.abs(R)**k + D3))
     return d
 
 
@@ -173,10 +168,10 @@ def Park(Mo, k, C, f, Pxx):
     cR1 = (MRR2 - MRR3) / (sR1**2 * (1 - sR1))
     cR2 = (-sR1 * MRR2 + MRR3) / (1 - sR1)
     cG = 1 - cR1 - cR2
-    sG = np.sqrt(np.pi) * gamma_func(1.5) / \
-        (cG * gamma_func(1)) * (MRR1 - cR1 * sR1 - cR2)
-    d = vp * (2*np.sqrt(2 * Mo[0]))**k / C * (cG / np.sqrt(np.pi) * sG**k * gamma_func(
-        (1 + k) / 2) + cR1 * sR1**k * gamma_func(1 + k / 2) + cR2 * gamma_func(1 + k / 2))
+    sG = np.sqrt(np.pi) * gamma(1.5) / \
+        (cG * gamma(1)) * (MRR1 - cR1 * sR1 - cR2)
+    d = vp * (2*np.sqrt(2 * Mo[0]))**k / C * (cG / np.sqrt(np.pi) * sG**k * gamma(
+        (1 + k) / 2) + cR1 * sR1**k * gamma(1 + k / 2) + cR2 * gamma(1 + k / 2))
     if d < 0:
         d = 0
     return d
@@ -205,8 +200,8 @@ def Jun_Park(k, C, Mo, f, Pxx):
     D3 = (-sR*MRR2 + MRR3)/(1 - sR)
     D4 = 1 - D1 - D2 - D3
     
-    A1 = gamma_func(2) / (np.sqrt(2)*gamma_func(1+1/2))
-    B1 = gamma_func(1) / (np.sqrt(np.pi)*gamma_func(1+1/2))
+    A1 = gamma(2) / (np.sqrt(2)*gamma(1+1/2))
+    B1 = gamma(1) / (np.sqrt(np.pi)*gamma(1+1/2))
     
     sH = 1/(B1 * D4) * (MRR1 - D1**2 - D2*sR - D3)
     sE = 1/(A1 * D1) * (MRR1 - D2*sR - D3 - B1*D4*sH)
@@ -217,7 +212,7 @@ def Jun_Park(k, C, Mo, f, Pxx):
     
     Qc = 0.903 - 0.28*delta_alfa + 4.448*delta_alfa**2 - 15.739*delta_alfa**3 + 19.57*delta_alfa**4 - 8.054*delta_alfa**5 + 1.013*alfa2 - 4.178*alfa2**2 + 8.362*alfa2**3 - 7.993*alfa2**4 + 2.886*alfa2**5
 
-    d = Qc*vp*(2*np.sqrt(2*Mo[0]))**k / C * (D1/(np.sqrt(2)**k)*sE**k*gamma_func(1+k) + D2*sR**k*gamma_func(1+k/2) + D3*gamma_func(1+k/2) + D4/(np.sqrt(np.pi))*sH**k*gamma_func((1+k)/2))
+    d = Qc*vp*(2*np.sqrt(2*Mo[0]))**k / C * (D1/(np.sqrt(2)**k)*sE**k*gamma(1+k) + D2*sR**k*gamma(1+k/2) + D3*gamma(1+k/2) + D4/(np.sqrt(np.pi))*sH**k*gamma((1+k)/2))
             
     return d
 
@@ -237,7 +232,7 @@ def Zhao_Baker(k, C, Mo, Pxx, f):
             rho_ZB = 0.28
 
         def eq(d):
-            return gamma_func(1 + 3 / b) * (1 - alfa2) * d**3 + 3 * gamma_func(1 + 1 / b) * (
+            return gamma(1 + 3 / b) * (1 - alfa2) * d**3 + 3 * gamma(1 + 1 / b) * (
                 rho_ZB * alfa2 - 1) * d + 3 * np.sqrt(np.pi / 2) * alfa2 * (1 - rho_ZB)
         try:
             root = fsolve(eq, 0)
@@ -248,10 +243,10 @@ def Zhao_Baker(k, C, Mo, Pxx, f):
         a = 8 - 7 * alfa2
 
     w = (1 - alfa2) / (1 - np.sqrt(2 / np.pi)
-                       * gamma_func(1 + 1 / b) * a**(-1 / b))
+                       * gamma(1 + 1 / b) * a**(-1 / b))
     vp = (1 / (2 * np.pi)) * np.sqrt(Mo[4] / Mo[2])
-    d = vp * (2 * np.sqrt(Mo[0]))**k / C * (w * a**(-k / b) * gamma_func(
-        1 + k / b) + (1 - w) * np.sqrt(2)**k * gamma_func(1 + k / 2))
+    d = vp * (2 * np.sqrt(Mo[0]))**k / C * (w * a**(-k / b) * gamma(
+        1 + k / b) + (1 - w) * np.sqrt(2)**k * gamma(1 + k / 2))
     return d[0]
 
 
@@ -310,7 +305,7 @@ def Jiao_Moan(m, v0, Mo_w, Mo_l, v0_l, v0_w, full_integration = False, C = 0):
     
     if full_integration == False:
         rho = v0_p / v0 * (m1**(m / 2 + 2) * (1 - np.sqrt(m2 / m1)) + np.sqrt(np.pi * m1 * m2)
-                           * (m * gamma_func(m / 2 + 1 / 2)) / (gamma_func(m / 2 + 1))) + v0_w / v0 * m2**(m / 2)
+                           * (m * gamma(m / 2 + 1 / 2)) / (gamma(m / 2 + 1))) + v0_w / v0 * m2**(m / 2)
         return rho
     else:
         # Damage due to small cycles (HF component):
@@ -336,12 +331,12 @@ def dual_narrowband(m, v0, Mo_w, Mo_l, v0_l, v0_w):
     m2 = Mo_w[0] / (Mo_l[0] + Mo_w[0])
     v0_p = m1 * v0_l * np.sqrt(1 + m2 / m1 * (v0_w / v0_l * d_w)**2) # Peak frequency
     rho = v0_p / v0 * (m1**(m / 2 + 2) * (1 - np.sqrt(m2 / m1)) + np.sqrt(np.pi * m1 * m2)
-                       * (m * gamma_func(m / 2 + 1 / 2)) / (gamma_func(m / 2 + 1))) + v0_w / v0 * m2**(m / 2)
+                       * (m * gamma(m / 2 + 1 / 2)) / (gamma(m / 2 + 1))) + v0_w / v0 * m2**(m / 2)
     return rho
 
 def Sakai_Okamura(k, C, Mo_l, Mo_w, ZUCF_l, ZUCF_w):
     
-    d = 2**k*2**(k/2) / (2*np.pi*C) * gamma_func(k/2 + 1) * (Mo_l[0]**((k-1)/2)*Mo_l[2]**(1/2) + Mo_w[0]**((k-1)/2)*Mo_w[2]**(1/2))
+    d = 2**k*2**(k/2) / (2*np.pi*C) * gamma(k/2 + 1) * (Mo_l[0]**((k-1)/2)*Mo_l[2]**(1/2) + Mo_w[0]**((k-1)/2)*Mo_w[2]**(1/2))
     
     return d
 
@@ -390,7 +385,7 @@ def Fu_Cebon(k, C, Mo_w, Mo_l, v0_w, v0_l, solution = 'Binomial expansion'):
         #but the series may be suitably truncated.
         J  = 0
         for j in range(int(k)+1):
-            J += special.binom(k, j) * std_HF**j * std_LF**(k-j) * gamma_func(1 + j/2) * gamma_func(1 + (k-j)/2)
+            J += special.binom(k, j) * std_HF**j * std_LF**(k-j) * gamma(1 + j/2) * gamma(1 + (k-j)/2)
             
         d_large = 2**(3*k/2) * v0_l / C * J    
         
@@ -444,7 +439,7 @@ def Modified_Fu_Cebon(k, C, Mo_w, Mo_l, v0_w, v0_l, solution = 'Binomial expansi
         #but the series may be suitably truncated.
         J  = 0
         for j in range(int(k)+1):
-            J += special.binom(k, j) * std_HF**j * std_LF**(k-j) * gamma_func(1 + j/2) * gamma_func(1 + (k-j)/2)
+            J += special.binom(k, j) * std_HF**j * std_LF**(k-j) * gamma(1 + j/2) * gamma(1 + (k-j)/2)
             
         d_large = 2**(3*k/2) * v0_l / C * J   
         
@@ -467,11 +462,43 @@ def LowBimodal(k, C, v0_w, v0_l, Mo_w, Mo_l):
         return st.rayleigh.pdf(r, scale = np.sqrt(M0))
 
     def pdf_theta(theta, beta): 
+        # Standardize uniform PDF calls
         return st.uniform.pdf(theta, loc= np.pi/(4*beta), scale= np.pi/2 - np.pi/(4*beta))
     
     def rho(r_l, r_h, beta, j):
         c = beta * r_h / (r_l + beta**2 * r_h)
-        return r_l * c**j + r_h * (beta * c - 1)**j / special.factorial(j)
+        # Fix: Use math.factorial for scalar j or scipy.special.factorial for arrays
+        # Since j is passed as 2, 4, 6 here, math.factorial is safer and faster
+        return r_l * c**j + r_h * (beta * c - 1)**j / math.factorial(j)
+
+    def integrand(k, *args):
+        if len(args) == 2:  # Small cycles
+            eps_val, M0_w = args
+            Ik = []
+            Ik.append(np.exp(-eps_val**2 / (2 * M0_w)))
+            Ik.append(eps_val * Ik[0] + np.sqrt(2 * np.pi) * np.sqrt(M0_w) * st.norm.cdf(-eps_val / np.sqrt(M0_w)))
+            
+            for i in range(2, int(k) + 1):
+                Ik.append(eps_val**i * np.exp(-eps_val**2 / (2 * M0_w)) + i * M0_w * Ik[i-2])
+            
+            J = 0
+            for j in range(int(k)+1):
+                # scipy.special.binom is correct and safe for NumPy 2.0
+                J += special.binom(k, j) * (-eps_val)**(k - j) * Ik[j]
+            return J
+        else:  # Large cycles
+            r_l, r_h, beta = args
+            r = r_l + r_h
+            rho_2 = rho(r_l, r_h, beta, 2)
+            rho_4 = rho(r_l, r_h, beta, 4)
+            rho_6 = rho(r_l, r_h, beta, 6)
+            
+            # Damage calculation using McLaurin expansion
+            J = r**k * (np.pi - k * rho_2 * np.pi**3 / (3*r) + 
+                        k / (5*r) * (rho_4 + (k - 1) * rho_2**2 / (2*r)) * np.pi**5 - 
+                        k / (7*r) * (rho_6 + (k - 1) * rho_2 * rho_4 / r + 
+                        (k - 1) * (k - 2) * rho_2**3 / (6 * r**2)) * np.pi**7)
+            return J
 
     def integral_small(theta, r_l): 
         return integrand(k, eps(r_l, theta, beta), Mo_w[0]) * pdf_theta(theta, beta) * pdf_r(r_l, Mo_l[0])
@@ -479,47 +506,15 @@ def LowBimodal(k, C, v0_w, v0_l, Mo_w, Mo_l):
     def integral_large(r_h, r_l): 
         return integrand(k, r_l, r_h, beta) * pdf_r(r_h, Mo_w[0]) * pdf_r(r_l, Mo_l[0])
 
-    def integrand(k, *args):
-        if len(args) == 2:  # Small cycles
-            eps_val = args[0]
-            M0_w = args[1]
-            # To simplify the evaluation of the triple integral, the innermorst integral is evaluated analytically
-            # The binomial coefficients (Ik) are computed first:
-            Ik = []
-            Ik.append(np.exp(-eps_val**2 / (2 * M0_w)))
-            Ik.append(eps_val * Ik[0] + np.sqrt(2 * np.pi) * np.sqrt(M0_w) * st.norm.cdf(-eps_val / np.sqrt(M0_w)))
-            for i in range(2, int(k) + 1):
-                Ik.append(eps_val**i * np.exp(-eps_val**2 / (2 * M0_w)) + i * M0_w * Ik[i-2])
-            
-            # The analytical expression of the innermost integral is then computed (based on a binomial series expansion)
-            J  = 0
-            for j in range(int(k)+1):
-                J += special.binom(k, j) * (-eps_val)**(k - j) * Ik[j]
-            return J
-        else:  # Large cycles
-            # An explicit solution for the innermost integral is used. The integral is
-            # expanded  through a McLaurin series and then a binomial expansion is
-            # performed retaining terms up to sixth order. This ensures sufficient 
-            # engineering precision (within 0.5%) in the damage estimate for up to k = 6.
-            r_l, r_h, beta = args
-            r = r_l + r_h
-            rho_2 = rho(r_l, r_h, beta, 2)
-            rho_4 = rho(r_l, r_h, beta, 4)
-            rho_6 = rho(r_l, r_h, beta, 6)
-            J = r**k * (np.pi - k * rho_2 * np.pi**3 / (3*r) + k / (5*r) * (rho_4 + (k - 1) * rho_2**2 / (2*r)) * np.pi**5
-                              - k / (7*r) * (rho_6 + (k - 1) * rho_2 * rho_4 / r + (k - 1) * (k - 2) * rho_2**3 / (6 * r**2)) * np.pi**7)
-            return J
-
+    # Numerical Integration
     Is, _ = integrate.dblquad(integral_small, 0, np.inf, lambda r_l: np.pi/(4*beta), lambda r_l: np.pi / 2)
     Il = integrate.dblquad(integral_large, 0, np.inf, lambda r_l: 0, lambda r_l: np.inf)[0] / np.pi
 
     v0_small = v0_w - v0_l
-
-    ds = v0_small * 2**k/ C * Is
+    ds = v0_small * 2**k / C * Is
     dl = v0_l * 2**k / C * Il
 
     return ds + dl
-
 
 def Low(k, C, Mo, Mo_l, Mo_w, ZUCF, ZUCF_l, ZUCF_w):
     
@@ -624,7 +619,7 @@ def Double_frequency_coupled(k, C, Mo_w, Mo_l, v0_w, v0_l, Pxx_w, f_w):
     
     sigma_HF = np.sqrt(Mo_w[0])
     mu_hf = v0_w
-    sigma_delta = np.sqrt(2*Mo_l[0] - 2 * integrate.simps(Pxx_w * np.cos(f_w * mu_hf/2), f_w))
+    sigma_delta = np.sqrt(2*Mo_l[0] - 2 * integrate.simpson(Pxx_w * np.cos(f_w * mu_hf/2), f_w))
     
     small_integral = integrate.quad(lambda Rs:  Rs**k \
                                     * pdf_rs(Rs, sigma_delta, sigma_HF), 0, np.inf)[0]
@@ -688,21 +683,15 @@ def Huang_Moan(k, C, Mo_w, Mo_l, ZUCF_w, ZUCF_l):
 
 def SingleMoment(k, C, f, Pxx):
     m_2k = per_spectral_mom(f, Pxx, n = [2/k])[0]
-    d = 2**(k/2)/(2*np.pi*C)*2**k*m_2k**(k/2)*gamma_func(1+k/2)
+    d = 2**(k/2)/(2*np.pi*C)*2**k*m_2k**(k/2)*gamma(1+k/2)
     return d
 
 
-def BandsMethod(k, C, tension, fs, nbands, cor = False):
+def BandsMethod(k, C, tension, fs, nbands):
     beta = -1/k; alfa = 1/2*C**(-beta); K = K_func(k);
     # Compute the PSD using Welch's method
     f, Pxx = sig.welch(tension, fs=fs, nperseg=100 * nbands-1)
     f_ref = f[len(f)//2]
-    if cor:
-        Sm  = tension.sum() / len(tension)
-        Sa = (max(tension)-min(tension))/2
-        Sar = np.sqrt(Sa*(Sm+Sa))
-        K_swt = Sar / Sa
-        Pxx = K_swt**2 * Pxx
     f_area = len(f)//nbands
     j = 0; m0 = 0
     for i in range(1,nbands+1): 
@@ -768,7 +757,7 @@ def Gao_Zheng(k, C, f_l, Pxx_l, f_w, Pxx_w, v0_w, v0_l, v0):
         return np.sum(f[1:]**(2/k) * Pxx[1:] * df[1:])
 
     def combined_spectralmom_sum(k, Pxx_1, f_1, Pxx_2, f_2, v0_1, v0_2):
-        beta = integrate.simps(Pxx_2, f_2) / integrate.simps(Pxx_1, f_1)
+        beta = integrate.simpson(Pxx_2, f_2) / integrate.simpson(Pxx_1, f_1)
         gamma = v0_1 / v0_2
         xi = xi_function(gamma, beta, k)
         df_1, df_2 = np.diff(f_1, prepend=f_1[0]), np.diff(f_2, prepend=f_2[0])
@@ -780,7 +769,7 @@ def Gao_Zheng(k, C, f_l, Pxx_l, f_w, Pxx_w, v0_w, v0_l, v0):
     lamba_2_k_hf = spectralmom_sum(k, Pxx_w, f_w)
     lamba_2_k_lf_hf = combined_spectralmom_sum(k, Pxx_l, f_l, Pxx_w, f_w, v0_w, v0_l)
 
-    d = (2*np.sqrt(2))**k / C * gamma_func(1 + k/2) * (lamba_2_k_lf + lamba_2_k_hf + lamba_2_k_lf_hf)**(k/2)
+    d = (2*np.sqrt(2))**k / C * gamma(1 + k/2) * (lamba_2_k_lf + lamba_2_k_hf + lamba_2_k_lf_hf)**(k/2)
 
     return d
 
@@ -842,15 +831,15 @@ def ImprovedBandsMethod(k, C, tension_low, tension_high, fs, nbands, Mo_w, Mo_l)
         return [P_values[f'P{i}'][k] for i in range(1, 12)]
     
     P = get_P_values_for_k(k, d_w)
-    gamma, beta = f_h_r / f_l_r, Mo_w[0] / Mo_l[0]
+    g, beta = f_h_r / f_l_r, Mo_w[0] / Mo_l[0]
     
-    log_gamma, log_beta = np.log(gamma), np.log(beta)
+    log_gamma, log_beta = np.log(g), np.log(beta)
     mu_numerator = P[0] + P[1]*log_gamma + P[2]*log_beta + P[3]*log_gamma**2 + P[4]*log_beta**2 + P[5]*log_gamma*log_beta
     mu_denominator = 1 + P[6]*log_gamma + P[7]*log_beta + P[8]*log_gamma**2 + P[9]*log_beta**2 + P[10]*log_gamma*log_beta
     mu = mu_numerator / mu_denominator
     
-    m0_total = m0_r_lf + gamma**(2/k) * m0_r_hf * mu
-    d = f_l_r / C * (2 * np.sqrt(2 * m0_total))**k * gamma_func(k / 2 + 1)
+    m0_total = m0_r_lf + g**(2/k) * m0_r_hf * mu
+    d = f_l_r / C * (2 * np.sqrt(2 * m0_total))**k * gamma(k / 2 + 1)
     return d
 
 
