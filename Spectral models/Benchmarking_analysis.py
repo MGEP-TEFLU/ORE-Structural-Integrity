@@ -253,7 +253,7 @@ for i in tqdm(range(ss), desc="Processing", unit="iteration"):
         damage_matrices['WL'][j,i] = D_wl
     
     # Tovo Benasciutti
-        rho_TB= fsm.Tovo_Benasciutti(Mo, k, tension)
+        rho_TB= fsm.Tovo_Benasciutti(Mo, k)
         D_tb = D_nb * rho_TB
         damage_matrices['TB'][j,i] = D_tb
         
